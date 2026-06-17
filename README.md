@@ -52,3 +52,84 @@ docker compose up --build
 
 # Verify all cluster instances (Frontend, Backend, DB) are successfully running
 docker ps
+
+# Day 4: Real-Time Collaboration Canvas - Full-Stack Infrastructure & Sync Resolving
+
+This document serves as the structural log and updated system documentation for **Day 4** of the B2B Real-Time Collaboration Canvas development. Today's sprint focused entirely on resolving multi-container network isolation, solving WebSocket routing drops, and adjusting architecture runtimes to ensure flawless real-time whiteboard state mutation sync.
+
+---
+
+## 🛠️ Tech Sprint Log: Day 4 Architecture Fixes
+
+### 1. Unified 3-Tier Container Layer (`docker-compose.yml`)
+* **The Gap:** The docker-compose layer was previously asymmetric—only containing backend and database services. The frontend application was isolated, and stale orphan container environments were causing name collisions (`Conflict. The container name is already in use`).
+* **The Fix:** Reconstructed the entire multi-container network topology. Added the Vite client into the compose engine, structured proper volumes to avoid mapping overheads, and injected the explicit `--host 0.0.0.0` command to force Vite to accept external docker network gateway traffic.
+
+### 2. Multi-Container Port Forwarding (`5001 -> 5000`)
+* **The Gap:** The React client application was targeting `localhost:5001` for real-time signaling loops, but the containerized Express/Socket.io backend was listening on `5000` isolated inside its workspace bridge. This mismatch triggered chronic browser exceptions (`net::ERR_EMPTY_RESPONSE`).
+* **The Fix:** Implemented clean Docker ingress mapping rules: **`"5001:5000"`**. Now, inbound traffic from host interfaces targeting port `5001` gets instantly forwarded to the containerized socket server listening securely on internal container port `5000`.
+
+### 3. Module Scope Engine Refactoring (`CommonJS to ESM`)
+* **The Gap:** The containerized Node.js v20 runtime crashed inside the backend image with a terminal fatal error (`ReferenceError: require is not defined`). This occurred because the root `package.json` had strict `"type": "module"` configuration while the application entrypoint relied on legacy CommonJS `require()` signatures.
+* **The Fix:** Refactored the core **`Backend/server.js`** file completely into modern ES Modules (ESM) syntax using proper asynchronous imports/exports while preserving original Mongoose connection pooling and isolated Socket rooms logic.
+
+### 4. Active Hot-Reloading Synchronization Engine
+* Unified the container daemon with Node's native `node --watch` script utility. This optimization guarantees that future iterations on canvas events or shape logic will trigger instant hot-swapping inside the container, eliminating the need for periodic manual image re-builds.
+
+---
+
+## 📊 System Architecture State
+
+| Service Tier | Environment Port | Native Runtime Engine | Network Routing Topology |
+| :--- | :--- | :--- | :--- |
+| **`Frontend-Client`** | `5173:5173` | Vite Dev Server (React) | Network Exposed on Host `0.0.0.0` |
+| **`Backend-API`** | `5001:5000` | Node.js (ESM Framework) | Socket.io Sockets CORS-Whitelisted |
+| **`Database`** | `27017:27017` | MongoDB Daemon Cluster | Attached to `miro-network` Bridge |
+
+---
+
+## 🚀 Corrected Configuration Reference
+
+### 📁 `docker-compose.yml`
+```yaml
+services:
+  frontend:
+    build: ./Frontend
+    container_name: miro_frontend_client
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:5001
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - miro-network
+    depends_on:
+      - backend
+
+  backend:
+    build: ./Backend
+    container_name: miro_backend_api
+    ports:
+      - "5001:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongodb:27017/miro_db
+    depends_on:
+      - mongodb
+    networks:
+      - miro-network
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - miro-network
+
+networks:
+  miro-network:
+    driver: bridge
