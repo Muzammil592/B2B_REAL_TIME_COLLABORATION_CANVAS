@@ -1,33 +1,41 @@
 services:
-  backend-api:
-    build:
-      context: ./Backend
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./Backend:/app
-      - /app/node_modules
-    environment:
-      - PORT=5000
-      - MONGO_URI=mongodb://mongodb:27017/miro_db
-
-  frontend-client:
-    build:
-      context: ./Frontend
-      dockerfile: Dockerfile
+  frontend:
+    build: ./Frontend # Aapke Frontend folder ka exact name/path
+    container_name: miro_frontend_client
     ports:
       - "5173:5173"
     volumes:
       - ./Frontend:/app
       - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:5001
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - miro-network
+    depends_on:
+      - backend
+
+  backend:
+    build: ./Backend
+    container_name: miro_backend_api
+    ports:
+      - "5001:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongodb:27017/miro_db
+    depends_on:
+      - mongodb
+    networks:
+      - miro-network
 
   mongodb:
     image: mongo:latest
+    container_name: mongodb
     ports:
       - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
+    networks:
+      - miro-network
 
-volumes:
-  mongo-data:
+networks:
+  miro-network:
+    driver: bridge
