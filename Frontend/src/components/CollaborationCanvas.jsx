@@ -9,12 +9,38 @@ export default function CollaborationCanvas() {
   const [currentTool, setCurrentTool] = useState('select'); 
   const [zoomRatio, setZoomRatio] = useState(100);
   
+  // 🚀 New Isolated Ingress Port Mapping Fallback
+  const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
   const boardId = "default-production-board"; 
 
+  // Tool changing behavior mapping separation
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    if (currentTool === 'pan') {
+      canvas.selection = false;
+      canvas.defaultCursor = 'grab';
+      canvas.forEachObject(obj => { 
+        obj.selectable = false; 
+        obj.evented = false; 
+      });
+    } else {
+      canvas.selection = true;
+      canvas.defaultCursor = 'default';
+      canvas.forEachObject(obj => { 
+        obj.selectable = true; 
+        obj.evented = true; 
+      });
+    }
+    canvas.requestRenderAll();
+  }, [currentTool]);
+
+  // Primary Infrastructure Lifecycle Hook (Runs exactly ONCE)
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // 1. Initialize Fabric Canvas
+    // 1. Initialize Fabric Canvas Frame Engine
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: window.innerWidth - 40,
       height: window.innerHeight - 120,
@@ -25,41 +51,61 @@ export default function CollaborationCanvas() {
 
     fabricCanvasRef.current = canvas;
 
-    // 2. Connect to Socket Server (Port 5001 matching Docker setup)
-    socketRef.current = io("http://localhost:5001");
+    // 2. Secure Connection to Signaling Microservice Gateway via Port 5002
+    socketRef.current = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
     
     socketRef.current.emit("join-board", boardId);
 
-    // 3. REMOTE UPDATES HANDLER (Jab dusra user kuch kare)
+    // 3. REMOTE SYNCHRONIZATION INTERCEPTOR LAYER
+    // 3. REMOTE SYNCHRONIZATION INTERCEPTOR LAYER
     socketRef.current.on("canvas-update-remote", (payload) => {
+      if (payload.senderId === socketRef.current.id) return; // Skip own updates
+
       const activeObjects = canvas.getObjects();
       const targetObj = activeObjects.find(obj => obj.id === payload.objData.id);
 
       if (targetObj) {
-        // Agar object pehle se exist karta hai toh uski properties update karein
-        targetObj.set(payload.objData);
-        targetObj.setCoords();
+        // ⚠️ LOOP PROTECTION: Mark object to bypass local event emission triggers
+        targetObj.remoteTriggered = true;
+        
+        // 🚀 FIX: Extract 'type' so we don't try to mutate Fabric's read-only type property
+        const { type, ...cleanProps } = payload.objData;
+        
+        targetObj.set(cleanProps);
+        targetObj.setCoords(); // Regenerate object matrix mapping boundaries
         canvas.requestRenderAll();
+
+        // Release the lock after compilation rendering completes safely
+        setTimeout(() => { targetObj.remoteTriggered = false; }, 50);
       } else {
-        // Agar naya object hai jo remote par bana hai
+        // Build fresh incoming remote vector stamps natively
         let newShape;
-        if (payload.type === 'rect' || payload.type === 'Rect') {
-          newShape = new fabric.Rect(payload.objData);
-        } else if (payload.type === 'circle' || payload.type === 'Circle') {
-          newShape = new fabric.Circle(payload.objData);
+        // 🚀 FIX: Clean properties copy pass for instant safe creation
+        const { type: schemaType, ...cleanProps } = payload.objData;
+
+        if (payload.type === 'rect') {
+          newShape = new fabric.Rect(cleanProps);
+        } else if (payload.type === 'circle') {
+          newShape = new fabric.Circle(cleanProps);
         }
 
         if (newShape) {
+          newShape.remoteTriggered = true;
           canvas.add(newShape);
           canvas.requestRenderAll();
+          setTimeout(() => { newShape.remoteTriggered = false; }, 50);
         }
       }
     });
 
-    // 4. Infinite Pan Logic
+    // 4. Infinite Viewport Space Panning Matrix Calculations
     canvas.on('mouse:down', function (opt) {
       const evt = opt.e;
-      if (currentTool === 'pan' || evt.altKey === true) {
+      const activeTool = canvasRef.current.dataset.tool; 
+      if (activeTool === 'pan' || evt.altKey === true) {
         this.isDragging = true;
         this.selection = false;
         this.lastPosX = evt.clientX;
@@ -83,11 +129,12 @@ export default function CollaborationCanvas() {
       if (this.isDragging) {
         this.setViewportTransform(this.viewportTransform);
         this.isDragging = false;
-        if (currentTool !== 'pan') this.selection = true;
+        const activeTool = canvasRef.current.dataset.tool;
+        if (activeTool !== 'pan') this.selection = true;
       }
     });
 
-    // 5. Zoom Engine
+    // 5. Exponential Magnifying Wheel Matrix Engine
     canvas.on('mouse:wheel', function (opt) {
       const delta = opt.e.deltaY;
       let zoom = this.getZoom();
@@ -100,17 +147,18 @@ export default function CollaborationCanvas() {
       opt.e.stopPropagation();
     });
 
-    // 6. LOCAL MUTATION BROADCASTER (Drag, Scale, Rotate hone par trigger)
+    // 6. LOCAL REAL-TIME MUTATION EMITTER PIPELINE
     const broadcastObjectMutation = (options) => {
       const target = options.target;
-      if (!target) return;
+      if (!target || target.remoteTriggered) return; // Drop intercept if sync call
 
       const serializedData = target.toJSON(['id']); 
 
       socketRef.current.emit("canvas-update", {
         boardId,
-        type: target.type,
-        objData: serializedData
+        type: target.type === 'Rect' ? 'rect' : target.type === 'Circle' ? 'circle' : target.type.toLowerCase(),
+        objData: serializedData,
+        senderId: socketRef.current.id
       });
     };
 
@@ -130,30 +178,21 @@ export default function CollaborationCanvas() {
       if (socketRef.current) socketRef.current.disconnect();
       canvas.dispose();
     };
-  }, [currentTool]);
+  }, []);
 
+  // Sync tool changing string variable data inside the raw DOM dataset layer safely
   useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
-
-    if (currentTool === 'pan') {
-      canvas.selection = false;
-      canvas.defaultCursor = 'grab';
-      canvas.forEachObject(obj => { obj.selectable = false; obj.evented = false; });
-    } else {
-      canvas.selection = true;
-      canvas.defaultCursor = 'default';
-      canvas.forEachObject(obj => { obj.selectable = true; obj.evented = true; });
+    if (canvasRef.current) {
+      canvasRef.current.dataset.tool = currentTool;
     }
-    canvas.requestRenderAll();
   }, [currentTool]);
 
-  // Handle Local Rectangle Creation and Instant Broadcast
+  // Handle Local Rectangle Creation & Emission
   const addRectangle = () => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
-    const uniqueId = `rect_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const uniqueId = `rect_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const rect = new fabric.Rect({
       id: uniqueId, 
       left: 200, top: 150,
@@ -166,24 +205,23 @@ export default function CollaborationCanvas() {
     canvas.setActiveObject(rect);
     canvas.requestRenderAll();
 
-    // Pehle custom 'id' proper data network me pass nahi ho raha tha, ab explicit send karein
     const dataToSend = rect.toJSON(['id']);
-    dataToSend.id = uniqueId; 
 
     socketRef.current.emit("canvas-update", {
       boardId,
       type: 'rect',
-      objData: dataToSend
+      objData: dataToSend,
+      senderId: socketRef.current.id
     });
     setCurrentTool('select');
   };
 
-  // Handle Local Circle Creation and Instant Broadcast
+  // Handle Local Circle Creation & Emission
   const addCircle = () => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
-    const uniqueId = `circle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const uniqueId = `circle_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const circle = new fabric.Circle({
       id: uniqueId, 
       left: 250, top: 200,
@@ -196,12 +234,12 @@ export default function CollaborationCanvas() {
     canvas.requestRenderAll();
 
     const dataToSend = circle.toJSON(['id']);
-    dataToSend.id = uniqueId;
 
     socketRef.current.emit("canvas-update", {
       boardId,
       type: 'circle',
-      objData: dataToSend
+      objData: dataToSend,
+      senderId: socketRef.current.id
     });
     setCurrentTool('select');
   };
