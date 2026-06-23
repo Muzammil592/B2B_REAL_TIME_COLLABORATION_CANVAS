@@ -28,27 +28,9 @@ Phase 3 introduced the complete vector processing mechanics, enabling a standalo
 * **Vector Object Lifecycle Generation & Modifiers:** Created structural helper methods to stamp real-time premium vector shapes onto coordinate arrays (Rounded Rectangles with smooth `rx/ry` corner rounding adjustments, and Circle configurations) with default object bounding selector controls.
 * **Adaptive Boundary Resize Observer:** Wired a window resize hook mechanism utilizing event-driven `.setDimensions` updates, causing the workspace frame parameters to scale dynamically according to client window mutations.
 
----
-
-## 🛠️ Unified System Technology Stack
-
-* **Frontend Engine:** React.js, Vite, Fabric.js (Vector Graphics Vector Core), Axios
-* **Backend Runtime:** Node.js, Express.js (Native ES Modules Compilation System)
-* **Database Cluster:** MongoDB, Mongoose ODM
-* **DevOps Pipelines:** Docker, Docker Compose Structural Container Networks
-
----
-
-## 🚦 Local Installation & Service Upstream Manual
-
-To spin up your local sandbox multi-container environment, execute the clean pipeline orchestration commands from the root project directory:
-
-```bash
-# Terminate active runtime artifacts and clear cache structures
-docker compose down
-
-# Spin up all microservices and automatically assemble fresh package changes
-docker compose up --build
-
-# Verify all cluster instances (Frontend, Backend, DB) are successfully running
-docker ps
+### 🔹 Day 4: Signaling Infrastructure & Multi-Container Sync Resolution
+Phase 4 focused on resolving multi-container network isolation, cross-origin web-socket connection drops, and adjusting image runtimes to eliminate handshake pooling latency.
+* **Unified 3-Tier Multi-Container Topology:** Restructured the orchestration layer (`docker-compose.yml`) to cleanly attach the frontend service container alongside the backend microservices, mapping shared volume profiles and explicitly injecting the `--host 0.0.0.0` directive to force the Vite dev-server to listen onto the virtual Docker bridge gateway.
+* **Deterministic Port-Forwarding Mapping (`5001 -> 5000`):** Eliminated browser edge execution failures (`net::ERR_EMPTY_RESPONSE`) by implementing rigid ingress forwarding parameters (`"5001:5000"`). This bridges host routing interfaces cleanly, allowing real-time socket events targeting port `5001` to safely drop into the containerized Socket.io instance listening inside port `5000`.
+* **Module Scope Architecture Refactoring (CommonJS to ESM):** Resolved backend container crashloops (`ReferenceError: require is not defined`) by completely refactoring **`Backend/server.js`** into modern ECMAScript Module (ESM) syntax using async `import` layouts, conforming seamlessly with global project rules (`"type": "module"`).
+* **Automated Node Watch Pipeline:** Re-engineered the Dockerfile execution parameters to securely map native `node --watch` script utility streams. This guarantees instant code-swapping and hot-reloading inside the container as canvas synchronization endpoints expand, removing image re-compilation over-heads.
