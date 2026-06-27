@@ -1,64 +1,91 @@
 import express from 'express';
-import { createServer } from 'http';
+import http from 'http';
 import { Server } from 'socket.io';
-import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 
-// Load environment variables
-dotenv.config();
+// --- DATABASE INFRASTRUCTURE SCHEMAS ---
+const BoardSchema = new mongoose.Schema({
+  boardId: { type: String, required: true, unique: true },
+  shapes: { type: Array, default: [] }, // Holds complex serialized Fabric vector trees
+}, { timestamps: true });
+
+const Board = mongoose.model('Board', BoardSchema);
 
 const app = express();
-
-// 1. Production CORS Middleware Configuration
-app.use(cors({
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-  credentials: true
-}));
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
 
-const server = createServer(app);
+// --- REST ENDPOINT: INITIAL STATE FETCH ---
+app.get('/api/boards/:boardId', async (req, res) => {
+  try {
+    const { boardId } = req.params;
+    let board = await Board.findOne({ boardId });
+    
+    // Fail-safe init: Agar board database mein pehle se nahi hai toh blank structural setup return karein
+    if (!board) {
+      board = await Board.create({ boardId, shapes: [] });
+    }
+    res.status(200).json(board);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch board operational vectors", details: error.message });
+  }
+});
 
-// 2. Real-Time Web Socket Engine Optimization
+// --- CORE SYSTEM HEALTH MONITOR ---
+app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
+  res.status(200).json({ status: 'OK', gateway: 'Operational', database: dbStatus });
+});
+
+const server = http.createServer(app);
+
+// --- SOCKET.IO REAL-TIME REALM PIPELINE ---
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true
-  },
-  allowEIO3: true
+  }
 });
 
-// 3. Database Connection Tunnel
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/miro_db';
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('🍃 MongoDB Cluster Pipeline Connected Securely...'))
-  .catch((err) => console.error('❌ Database Hookup Failure:', err));
-
-// 4. WebSocket Operational Event Framework
-io.on('connection', (socket) => {
-  console.log(`🔌 New WebSocket client tunnel active: ${socket.id}`);
-
-  // Workspace Channel Isolation (Rooms logic)
-  socket.on('join-board', (boardId) => {
+io.on("connection", (socket) => {
+  
+  socket.on("join-board", (boardId) => {
     socket.join(boardId);
-    console.log(`🎯 Client [${socket.id}] joined workspace channel: ${boardId}`);
   });
 
-  // Real-time matrix mutation broadcaster
-  socket.on('canvas-update', (data) => {
-    socket.to(data.boardId).emit('canvas-update-remote', data);
+  // Intercept changes and sync immediately across peers
+  socket.on("canvas-update", (payload) => {
+    socket.to(payload.boardId).emit("canvas-update-remote", payload);
   });
 
-  // Disconnect Lifecycle Cleanups
-  socket.on('disconnect', () => {
-    console.log(`❌ Client disconnected: ${socket.id}`);
+  // 🚀 CRDT PERSISTENCE ACTION: Save full state layout drop asynchronously
+  socket.on("save-canvas-state", async (payload) => {
+    try {
+      const { boardId, shapes } = payload;
+      await Board.findOneAndUpdate(
+        { boardId },
+        { $set: { shapes } },
+        { upsert: true, new: true }
+      );
+    } catch (err) {
+      console.error("❌ Critical: Failed to flush state to MongoDB Cluster:", err.message);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    // Graceful socket termination
   });
 });
 
-// 5. Port Configuration & Secure Interface Binding
-const PORT = process.env.PORT || 5001;
+// --- MONGO CONNECTION LOOPS ---
+const MONGO_URI = process.env.MONGO_URI || "mongodb://mongodb:27017/miro_db";
+mongoose.connect(MONGO_URI)
+  .then(() => console.log("🍃 MongoDB Cluster Pipeline Connected Securely..."))
+  .catch(err => console.error("❌ MongoDB Connection Disaster:", err));
 
-server.listen(PORT, '0.0.0.0', () => {
+const PORT = 5001;
+server.listen(PORT, () => {
   console.log(`🚀 B2B Collaboration Pipeline executing transparently on port ${PORT}`);
 });
